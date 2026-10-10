@@ -1,0 +1,1 @@
+{"timestamp":"2026-10-09T22:20:22.339949200Z","status":400,"error":"Bad Request","message":"Error de validación en la solicitud","path":"/api/favoritos","fieldErrors":{"nota":"La nota es obligatoria"}}

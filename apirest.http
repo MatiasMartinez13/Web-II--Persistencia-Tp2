@@ -1,0 +1,163 @@
+###
+# TP2 - Pruebas de endpoints
+# Requisito: PostgreSQL arriba (docker compose up -d) y app corriendo en
+#            http://localhost:8080 (.\mvnw.cmd spring-boot:run)
+# Usá la extensión "REST Client" de VS Code y hacé clic en "Send Request".
+###
+
+### Listar productos (paginado)
+GET http://localhost:8080/api/productos?limit=3&skip=0
+Accept: application/json
+
+### Producto por id
+GET http://localhost:8080/api/productos/1
+Accept: application/json
+
+### Producto inexistente -> 404
+GET http://localhost:8080/api/productos/99999
+Accept: application/json
+
+### --- LISTAS ---
+
+### Crear lista -> 201 Created
+POST http://localhost:8080/api/listas
+Content-Type: application/json
+
+{
+  "nombre": "Regalos"
+}
+
+### Crear lista invalida (validacion) -> 400 Bad Request
+POST http://localhost:8080/api/listas
+Content-Type: application/json
+
+{
+  "nombre": "  "
+}
+
+### Listar listas
+GET http://localhost:8080/api/listas
+Accept: application/json
+
+### Obtener lista por id
+GET http://localhost:8080/api/listas/1
+Accept: application/json
+
+### Lista inexistente -> 404 Not Found
+GET http://localhost:8080/api/listas/999
+Accept: application/json
+
+### Listar favoritos de una lista
+GET http://localhost:8080/api/listas/1/favoritos
+Accept: application/json
+
+### Favoritos de lista inexistente -> 404 Not Found
+GET http://localhost:8080/api/listas/999/favoritos
+Accept: application/json
+
+### Eliminar lista vacia -> 204 No Content
+DELETE http://localhost:8080/api/listas/2
+
+### Eliminar lista inexistente -> 404 Not Found
+DELETE http://localhost:8080/api/listas/999
+
+### --- FAVORITOS (ahora con listaId obligatorio) ---
+
+### Crear favorito -> 201 Created
+POST http://localhost:8080/api/favoritos
+Content-Type: application/json
+
+{
+  "productoId": 1,
+  "nota": "Ideal para regalar",
+  "listaId": 1
+}
+
+### Crear favorito en lista inexistente -> 404 Not Found
+POST http://localhost:8080/api/favoritos
+Content-Type: application/json
+
+{
+  "productoId": 1,
+  "nota": "Nota",
+  "listaId": 999
+}
+
+### Crear favorito invalido (validacion) -> 400 Bad Request
+POST http://localhost:8080/api/favoritos
+Content-Type: application/json
+
+{
+  "productoId": -1,
+  "nota": "",
+  "listaId": 1
+}
+
+### Crear favorito sin listaId -> 400 Bad Request
+POST http://localhost:8080/api/favoritos
+Content-Type: application/json
+
+{
+  "productoId": 1,
+  "nota": "Sin lista"
+}
+
+### Listar favoritos
+GET http://localhost:8080/api/favoritos
+Accept: application/json
+
+### Obtener favorito por id
+GET http://localhost:8080/api/favoritos/1
+Accept: application/json
+
+### Favorito inexistente -> 404 Not Found
+GET http://localhost:8080/api/favoritos/999
+Accept: application/json
+
+### Actualizar favorito -> 200 OK
+PUT http://localhost:8080/api/favoritos/1
+Content-Type: application/json
+
+{
+  "productoId": 2,
+  "nota": "Nota actualizada",
+  "listaId": 1
+}
+
+### Eliminar favorito -> 204 No Content
+DELETE http://localhost:8080/api/favoritos/1
+
+### --- Mover favoritos (operacion transaccional) ---
+
+### Mover todos los favoritos de la lista 1 a la lista 2 (elimina la lista 1) -> 200 OK
+POST http://localhost:8080/api/listas/1/mover-favoritos
+Content-Type: application/json
+
+{
+  "destinoId": 2
+}
+
+### Mover a la misma lista -> 400 Bad Request
+POST http://localhost:8080/api/listas/1/mover-favoritos
+Content-Type: application/json
+
+{
+  "destinoId": 1
+}
+
+### Mover a lista inexistente -> 404 Not Found
+POST http://localhost:8080/api/listas/1/mover-favoritos
+Content-Type: application/json
+
+{
+  "destinoId": 999
+}
+
+### --- Swagger ---
+
+### Swagger UI
+GET http://localhost:8080/swagger-ui.html
+
+### OpenAPI JSON
+GET http://localhost:8080/v3/api-docs
+Accept: application/json

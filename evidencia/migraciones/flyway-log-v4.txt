@@ -1,0 +1,6 @@
+2026-10-09T19:20:32.010-03:00  INFO 3996 --- [apirest] [           main] o.f.c.i.s.JdbcTableSchemaHistory         : Creating Schema History table "public"."flyway_schema_history" with baseline ...
+2026-10-09T19:20:32.039-03:00  INFO 3996 --- [apirest] [           main] o.f.core.internal.command.DbBaseline     : Successfully baselined schema with version: 1
+2026-10-09T19:20:32.067-03:00  INFO 3996 --- [apirest] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "2 - create listas"
+2026-10-09T19:20:32.084-03:00  INFO 3996 --- [apirest] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "3 - add lista id a favoritos"
+2026-10-09T19:20:32.097-03:00  INFO 3996 --- [apirest] [           main] o.f.core.internal.command.DbMigrate      : Migrating schema "public" to version "4 - lista id obligatorio"
+2026-10-09T19:20:32.108-03:00  INFO 3996 --- [apirest] [           main] o.f.core.internal.command.DbMigrate      : Successfully applied 3 migrations to schema "public", now at version v4 (execution time 00:00.021s)

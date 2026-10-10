@@ -1,0 +1,1 @@
+{"timestamp":"2026-10-09T22:20:22.645278300Z","status":409,"error":"Conflict","message":"No se puede eliminar la lista 'Pendientes' porque aún tiene favoritos vinculados","path":"/api/listas/3"}

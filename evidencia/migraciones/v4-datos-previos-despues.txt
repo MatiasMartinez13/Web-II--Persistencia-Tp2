@@ -1,0 +1,11 @@
+ id | producto_id | lista_id |     lista      
+----+-------------+----------+----------------
+  1 |           1 |        1 | Sin clasificar
+(1 fila)
+
+ column_name | is_nullable 
+-------------+-------------
+ lista_id    | NO
+(1 fila)
+
+

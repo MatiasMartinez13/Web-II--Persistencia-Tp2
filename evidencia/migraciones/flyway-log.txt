@@ -1,0 +1,2 @@
+2026-10-09T19:20:25.405-03:00  INFO 2736 --- [apirest] [           main] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:5432/apirest (PostgreSQL 16.15)
+2026-10-09T19:20:25.460-03:00  INFO 2736 --- [apirest] [           main] o.f.core.internal.command.DbValidate     : Successfully validated 4 migrations (execution time 00:00.021s)

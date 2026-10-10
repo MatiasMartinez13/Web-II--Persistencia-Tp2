@@ -1,0 +1,17 @@
+      table_name       
+-----------------------
+ favoritos
+ flyway_schema_history
+ listas
+(3 filas)
+
+ column_name | is_nullable |          data_type          
+-------------+-------------+-----------------------------
+ id          | NO          | bigint
+ producto_id | NO          | bigint
+ nota        | NO          | character varying
+ fecha_alta  | NO          | timestamp without time zone
+ lista_id    | NO          | bigint
+(5 filas)
+
+
