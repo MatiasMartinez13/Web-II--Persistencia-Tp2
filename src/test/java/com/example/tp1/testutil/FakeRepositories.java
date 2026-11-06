@@ -2,8 +2,11 @@ package com.example.tp1.testutil;
 
 import com.example.tp1.domain.Favorito;
 import com.example.tp1.domain.Lista;
+import com.example.tp1.domain.RolUsuario;
+import com.example.tp1.domain.Usuario;
 import com.example.tp1.repository.FavoritoRepository;
 import com.example.tp1.repository.ListaRepository;
+import com.example.tp1.repository.UsuarioRepository;
 
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
@@ -72,6 +75,7 @@ public final class FakeRepositories {
         public Lista seed(String nombre) {
             Lista lista = new Lista();
             lista.setNombre(nombre);
+            lista.setUsuarioId(1L);
             return save(lista);
         }
 
@@ -86,8 +90,46 @@ public final class FakeRepositories {
         }
 
         @Override
+        public List<Lista> findByUsuarioId(Long usuarioId) {
+            return storage.values().stream()
+                    .filter(l -> usuarioId.equals(l.getUsuarioId()))
+                    .toList();
+        }
+
+        @Override
         public boolean deleteById(Long id) {
             return storage.remove(id) != null;
+        }
+    }
+
+    public static class FakeUsuarioRepository implements UsuarioRepository {
+        private final Map<Long, Usuario> storage = new LinkedHashMap<>();
+        private final AtomicLong secuencia = new AtomicLong(1);
+
+        @Override
+        public Usuario save(Usuario usuario) {
+            if (usuario.getId() == null) {
+                usuario.setId(secuencia.getAndIncrement());
+            }
+            storage.put(usuario.getId(), usuario);
+            return usuario;
+        }
+
+        @Override
+        public Optional<Usuario> findById(Long id) {
+            return Optional.ofNullable(storage.get(id));
+        }
+
+        @Override
+        public Optional<Usuario> findByEmail(String email) {
+            return storage.values().stream()
+                    .filter(u -> u.getEmail().equalsIgnoreCase(email))
+                    .findFirst();
+        }
+
+        @Override
+        public boolean existsByEmail(String email) {
+            return findByEmail(email).isPresent();
         }
     }
 }

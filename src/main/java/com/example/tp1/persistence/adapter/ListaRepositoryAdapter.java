@@ -2,6 +2,7 @@ package com.example.tp1.persistence.adapter;
 
 import com.example.tp1.domain.Lista;
 import com.example.tp1.persistence.entity.ListaEntity;
+import com.example.tp1.persistence.entity.UsuarioEntity;
 import com.example.tp1.persistence.repository.ListaJpaRepository;
 import com.example.tp1.repository.ListaRepository;
 import org.springframework.stereotype.Repository;
@@ -34,6 +35,11 @@ public class ListaRepositoryAdapter implements ListaRepository {
     }
 
     @Override
+    public List<Lista> findByUsuarioId(Long usuarioId) {
+        return jpaRepository.findByUsuarioId(usuarioId).stream().map(this::toDomain).toList();
+    }
+
+    @Override
     public boolean deleteById(Long id) {
         if (!jpaRepository.existsById(id)) {
             return false;
@@ -46,6 +52,9 @@ public class ListaRepositoryAdapter implements ListaRepository {
         ListaEntity entidad = new ListaEntity();
         entidad.setId(dominio.getId());
         entidad.setNombre(dominio.getNombre());
+        UsuarioEntity usuario = new UsuarioEntity();
+        usuario.setId(dominio.getUsuarioId());
+        entidad.setUsuario(usuario);
         return entidad;
     }
 
@@ -53,6 +62,9 @@ public class ListaRepositoryAdapter implements ListaRepository {
         Lista dominio = new Lista();
         dominio.setId(entidad.getId());
         dominio.setNombre(entidad.getNombre());
+        if (entidad.getUsuario() != null) {
+            dominio.setUsuarioId(entidad.getUsuario().getId());
+        }
         return dominio;
     }
 }

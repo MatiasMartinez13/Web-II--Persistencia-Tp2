@@ -26,7 +26,7 @@ import java.util.List;
 @Validated
 @RestController
 @RequestMapping("/api/favoritos")
-@Tag(name = "Favoritos", description = "CRUD completo de favoritos persistidos en PostgreSQL.")
+@Tag(name = "Favoritos", description = "CRUD completo de favoritos persistidos en PostgreSQL. Requiere autenticación Bearer; cada usuario solo opera sobre favoritos de sus listas (ADMIN ve todos).")
 public class FavoritoController {
 
     private final FavoritoService service;

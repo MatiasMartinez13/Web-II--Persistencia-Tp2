@@ -13,5 +13,7 @@ public interface ListaRepository {
 
     List<Lista> findAll();
 
+    List<Lista> findByUsuarioId(Long usuarioId);
+
     boolean deleteById(Long id);
 }

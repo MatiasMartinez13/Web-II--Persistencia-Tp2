@@ -27,7 +27,7 @@ import java.util.List;
 @Validated
 @RestController
 @RequestMapping("/api/listas")
-@Tag(name = "Listas", description = "CRUD de listas persistentes en PostgreSQL y operación transaccional mover-favoritos.")
+@Tag(name = "Listas", description = "CRUD de listas persistentes en PostgreSQL y mover-favoritos. Requiere autenticación Bearer; cada usuario solo ve/modifica sus listas (ADMIN ve todas). 403 si la lista es ajena.")
 public class ListaController {
 
     private final ListaService service;

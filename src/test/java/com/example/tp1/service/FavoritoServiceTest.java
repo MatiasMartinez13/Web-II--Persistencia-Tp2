@@ -2,10 +2,14 @@ package com.example.tp1.service;
 
 import com.example.tp1.dto.favorito.FavoritoRequestDTO;
 import com.example.tp1.dto.favorito.FavoritoResponseDTO;
+import com.example.tp1.domain.RolUsuario;
 import com.example.tp1.exception.FavoritoNotFoundException;
 import com.example.tp1.exception.ListaNotFoundException;
+import com.example.tp1.security.SecurityHelper;
 import com.example.tp1.testutil.FakeRepositories.FakeFavoritoRepository;
 import com.example.tp1.testutil.FakeRepositories.FakeListaRepository;
+import com.example.tp1.testutil.TestSecurity;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,8 +30,14 @@ class FavoritoServiceTest {
     void setUp() {
         favoritoRepository = new FakeFavoritoRepository();
         listaRepository = new FakeListaRepository();
-        service = new FavoritoService(favoritoRepository, listaRepository);
+        service = new FavoritoService(favoritoRepository, listaRepository, new SecurityHelper());
+        TestSecurity.authenticateAs(1L, "user@example.com", RolUsuario.USER);
         listaId = listaRepository.seed("Regalos").getId();
+    }
+
+    @AfterEach
+    void tearDown() {
+        TestSecurity.clear();
     }
 
     @Test

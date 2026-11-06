@@ -1,0 +1,78 @@
+###
+# TP3 - Auth + listas/favoritos autenticados
+# Requisito: PostgreSQL arriba (docker compose up -d) y app en http://localhost:8080
+# ---------------------------------------------------------------------------
+# 1) REGISTRO Y LOGIN
+###
+
+### Registro -> 201
+POST http://localhost:8080/api/auth/registro
+Content-Type: application/json
+
+{
+  "email": "persona@example.com",
+  "password": "secreta123"
+}
+
+### Registro duplicado -> 409 Conflict
+POST http://localhost:8080/api/auth/registro
+Content-Type: application/json
+
+{
+  "email": "persona@example.com",
+  "password": "secreta123"
+}
+
+### Login ok -> 200 (copiar el token de la respuesta)
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "persona@example.com",
+  "password": "secreta123"
+}
+
+### Login mal -> 401 Unauthorized
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "persona@example.com",
+  "password": "incorrecta99"
+}
+
+# ---------------------------------------------------------------------------
+# 2) USAR EL TOKEN (reemplazar <TOKEN> con el de la respuesta del login)
+# ---------------------------------------------------------------------------
+
+### Listar listas SIN token -> 401 Unauthorized
+GET http://localhost:8080/api/listas
+Accept: application/json
+
+### Crear lista (dueño = usuario del token) -> 201
+POST http://localhost:8080/api/listas
+Content-Type: application/json
+Authorization: Bearer <TOKEN>
+
+{
+  "nombre": "Regalos"
+}
+
+### Listar mis listas -> 200 (solo las mías)
+GET http://localhost:8080/api/listas
+Accept: application/json
+Authorization: Bearer <TOKEN>
+
+### Obtener mi lista -> 200
+GET http://localhost:8080/api/listas/1
+Accept: application/json
+Authorization: Bearer <TOKEN>
+
+### Obtener lista ajena -> 403 Forbidden (con token de otro usuario)
+GET http://localhost:8080/api/listas/2
+Accept: application/json
+Authorization: Bearer <TOKEN_OTRO_USUARIO>
+
+### Salud (público, para despliegue) -> 200
+GET http://localhost:8080/health
+Accept: application/json

@@ -4,6 +4,7 @@ public class Lista {
 
     private Long id;
     private String nombre;
+    private Long usuarioId;
 
     public Long getId() {
         return id;
@@ -20,4 +21,7 @@ public class Lista {
     public void setNombre(String nombre) {
         this.nombre = nombre;
     }
+
+    public Long getUsuarioId() { return usuarioId; }
+    public void setUsuarioId(Long usuarioId) { this.usuarioId = usuarioId; }
 }

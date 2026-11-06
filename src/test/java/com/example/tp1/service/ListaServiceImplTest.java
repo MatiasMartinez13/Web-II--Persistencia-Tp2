@@ -1,13 +1,18 @@
 package com.example.tp1.service;
 
 import com.example.tp1.domain.Favorito;
+import com.example.tp1.domain.RolUsuario;
 import com.example.tp1.dto.favorito.FavoritoResponseDTO;
 import com.example.tp1.dto.lista.ListaRequestDTO;
 import com.example.tp1.dto.lista.ListaResponseDTO;
+import com.example.tp1.exception.AccessDeniedException;
 import com.example.tp1.exception.ListaNoVaciaException;
 import com.example.tp1.exception.ListaNotFoundException;
+import com.example.tp1.security.SecurityHelper;
 import com.example.tp1.testutil.FakeRepositories.FakeFavoritoRepository;
 import com.example.tp1.testutil.FakeRepositories.FakeListaRepository;
+import com.example.tp1.testutil.TestSecurity;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +21,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class ListaServiceTest {
+class ListaServiceImplTest {
 
     private FakeFavoritoRepository favoritoRepository;
     private FakeListaRepository listaRepository;
@@ -26,38 +31,62 @@ class ListaServiceTest {
     void setUp() {
         favoritoRepository = new FakeFavoritoRepository();
         listaRepository = new FakeListaRepository();
-        service = new ListaService(listaRepository, favoritoRepository);
+        service = new ListaService(listaRepository, favoritoRepository, new SecurityHelper());
+        TestSecurity.authenticateAs(1L, "user@example.com", RolUsuario.USER);
+    }
+
+    @AfterEach
+    void tearDown() {
+        TestSecurity.clear();
     }
 
     @Test
-    void crearDevuelveListaConIdYNombre() {
+    void crear_asociaUsuarioAutenticado_resultadoListaConDueño() {
         ListaResponseDTO creada = service.crear(new ListaRequestDTO("Regalos"));
 
         assertThat(creada.id()).isEqualTo(1L);
         assertThat(creada.nombre()).isEqualTo("Regalos");
+        assertThat(listaRepository.findById(creada.id()).orElseThrow().getUsuarioId()).isEqualTo(1L);
     }
 
     @Test
-    void listarDevuelveTodas() {
+    void listar_devuelveSoloPropias_resultadoFiltradas() {
         service.crear(new ListaRequestDTO("Una"));
-        service.crear(new ListaRequestDTO("Dos"));
+        TestSecurity.authenticateAs(2L, "otro@example.com", RolUsuario.USER);
+        service.crear(new ListaRequestDTO("Ajena"));
 
+        TestSecurity.authenticateAs(1L, "user@example.com", RolUsuario.USER);
+        assertThat(service.listar()).hasSize(1);
+        assertThat(service.listar().get(0).nombre()).isEqualTo("Una");
+    }
+
+    @Test
+    void listar_admin_resultadoTodas() {
+        service.crear(new ListaRequestDTO("Una"));
+        TestSecurity.authenticateAs(2L, "otro@example.com", RolUsuario.USER);
+        service.crear(new ListaRequestDTO("Ajena"));
+
+        TestSecurity.authenticateAs(99L, "admin@example.com", RolUsuario.ADMIN);
         assertThat(service.listar()).hasSize(2);
     }
 
     @Test
-    void obtenerPorId() {
-        ListaResponseDTO creada = service.crear(new ListaRequestDTO("Regalos"));
+    void obtener_listaAjena_lanzaAccesoDenegado() {
+        TestSecurity.authenticateAs(2L, "otro@example.com", RolUsuario.USER);
+        Long ajenaId = service.crear(new ListaRequestDTO("Ajena")).id();
 
-        ListaResponseDTO obtenida = service.obtener(creada.id());
-
-        assertThat(obtenida.nombre()).isEqualTo("Regalos");
+        TestSecurity.authenticateAs(1L, "user@example.com", RolUsuario.USER);
+        assertThatThrownBy(() -> service.obtener(ajenaId))
+                .isInstanceOf(AccessDeniedException.class);
     }
 
     @Test
-    void obtenerInexistenteLanza404() {
-        assertThatThrownBy(() -> service.obtener(999L))
-                .isInstanceOf(ListaNotFoundException.class);
+    void obtener_admin_listaAjena_resultadoPermite() {
+        TestSecurity.authenticateAs(2L, "otro@example.com", RolUsuario.USER);
+        Long ajenaId = service.crear(new ListaRequestDTO("Ajena")).id();
+
+        TestSecurity.authenticateAs(99L, "admin@example.com", RolUsuario.ADMIN);
+        assertThat(service.obtener(ajenaId).nombre()).isEqualTo("Ajena");
     }
 
     @Test
@@ -72,11 +101,7 @@ class ListaServiceTest {
     @Test
     void eliminarListaConFavoritosLanza409() {
         Long listaId = service.crear(new ListaRequestDTO("ConFavoritos")).id();
-        Favorito favorito = new Favorito();
-        favorito.setProductoId(1L);
-        favorito.setNota("Nota");
-        favorito.setListaId(listaId);
-        favoritoRepository.save(favorito);
+        favoritoRepository.save(favoritoConLista(listaId));
 
         assertThatThrownBy(() -> service.eliminar(listaId))
                 .isInstanceOf(ListaNoVaciaException.class);

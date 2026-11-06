@@ -1,311 +1,201 @@
-# TP2 · Persistent and transactional
+# TP3 · Seguridad, pruebas e integración continua
 
 API REST con **Spring Boot 4.1 / Java 25 / Maven / PostgreSQL**, organizada en capas con
 **puertos y adaptadores** (Controller → Service → Port ← Persistence Adapter).
 
-La persistencia deja de ser en memoria: **favoritos y listas viven en PostgreSQL**, el esquema
-se versiona con **Flyway** y las entidades se acceden con **Spring Data JPA**.
+Evolución del TP2: se suma **autenticación con JWT y autorización por dueño/rol**.
+**Favoritos y listas siguen siendo lo mismo**; ahora una lista pertenece a un usuario
+(`Usuario → Lista → Favorito`). El catálogo `/api/productos` sigue público.
 
-Expone tres grupos de endpoints:
-
-- **`/api/productos`** — catálogo de solo lectura. El backend consume la API pública
-  [DummyJSON](https://dummyjson.com) con `RestClient` (sin cambios respecto del TP1).
-- **`/api/favoritos`** — CRUD completo de favoritos, ahora **persistidos en PostgreSQL**.
-- **`/api/listas`** — CRUD de listas + operación transaccional **`mover-favoritos`**.
+| Grupo | Acceso |
+| --- | --- |
+| `/api/auth/**`, `/api/productos/**`, `/health` | Públicos |
+| `/api/favoritos/**`, `/api/listas/**` | Requieren `Authorization: Bearer <token>` |
+| `ADMIN` | Ve/modifica listas y favoritos de cualquiera |
+| `USER` | Solo las suyas; lista ajena → **403 Forbidden** |
 
 ## Requisitos
 
-- **JDK 25** (verificar con `java -version`).
-- **PostgreSQL 14+** (puerto `5432`) — ver abajo cómo levantarlo.
-- No hace falta Maven instalado: el proyecto incluye el **Maven Wrapper** (`mvnw`/`mvnw.cmd`).
+- **JDK 25** (`java -version`). Maven Wrapper incluido (`mvnw`/`mvnw.cmd`).
+- **Docker** para los tests de integración (Testcontainers + `postgres:16-alpine`).
+- **PostgreSQL 14+** local solo si querés correr la app suelta (`docker compose up -d`).
 
-> **Importante (variables de entorno):** si tu `JAVA_HOME` apunta a un JDK distinto del 25
-> (por ejemplo JDK 21), el wrapper puede fallar con `release version 25 not supported`.
-> Solución: seteá `JAVA_HOME` al JDK 25 o dejalo sin definir para que se use el `java` del `PATH`.
-> En Visual Studio Code, `.vscode/settings.json` ya registra el runtime **JavaSE-25**.
-
-## Cómo levantar PostgreSQL
-
-### Opción A — Docker (recomendada)
-
-```bash
-docker compose up -d
-```
-
-Crea el contenedor `apirest-postgres` con la base `apirest`, usuario/contraseña
-`postgres`/`postgres` en el puerto **5432** (datos persistentes en el volumen `postgres_data`).
-
-### Opción B — PostgreSQL instalado en la máquina
-
-1. Instalá PostgreSQL (por ejemplo los binarios oficiales de [enterprisedb.com](https://www.enterprisedb.com/download-postgresql-binaries)).
-2. Creá la base con el mismo nombre y credenciales:
-
-```bash
-# con psql como superusuario
-CREATE DATABASE apirest;
-ALTER USER postgres WITH PASSWORD 'postgres';
-```
-
-> Las credenciales/configuración están en `src/main/resources/application.properties`
-> (`spring.datasource.*`). Si tu instalación usa otra base/usuario, ajustalos ahí.
+> Si `JAVA_HOME` apunta a otro JDK (ej. 21), el wrapper puede fallar con
+> `release version 25 not supported`: seteá `JAVA_HOME` al JDK 25 o dejalo sin definir.
 
 ## Cómo levantar el proyecto
 
 ```bash
-# Windows
-.\mvnw.cmd spring-boot:run
+docker compose up -d          # PostgreSQL local apirest (postgres/postgres)
 
-# Linux / macOS
-./mvnw spring-boot:run
+.\mvnw.cmd spring-boot:run    # Windows
+./mvnw spring-boot:run        # Linux/macOS
 ```
 
-En Visual Studio Code: ejecutá la clase `com.example.tp1.Tp1Application` (botón ▶).
+La app escucha en **http://localhost:8080** y Flyway aplica las migraciones al arrancar.
+Swagger: http://localhost:8080/swagger-ui.html (botón **Authorize** → `Bearer <token>`).
 
-La aplicación queda escuchando en **http://localhost:8080**. Al arrancar, **Flyway aplica
-automáticamente las migraciones pendientes** sobre la base configurada.
+Configuración por **variables de entorno** (defaults solo para local):
 
-> A diferencia del TP1, **los datos persisten tras reiniciar la aplicación** (PostgreSQL).
-
-## Migraciones (Flyway)
-
-El esquema se versiona en `src/main/resources/db/migration`:
-
-| Migración | Qué hace |
-| --- | --- |
-| `V1__create_favoritos.sql` | Tabla `favoritos` (id, producto_id, nota, fecha_alta) |
-| `V2__create_listas.sql` | Tabla `listas` (id, nombre) |
-| `V3__add_lista_id_a_favoritos.sql` | Columna `lista_id` (nullable) + FK `fk_favoritos_lista` → `listas(id)` |
-| `V4__lista_id_obligatorio.sql` | Crea la lista por defecto **"Sin clasificar"**, reasigna los favoritos sin lista y declara `lista_id NOT NULL` |
-
-**¿Por qué no dejar que Hibernate cree el esquema con `ddl-auto=update`?**
-
-Con Flyway **una sola herramienta** es dueña del esquema. `spring.jpa.hibernate.ddl-auto=validate`
-hace que Hibernate **valide** que las entidades coincidan con el esquema versionado y **no lo modifique**.
-Así la evolución queda registrada, auditable y reproducible en cualquier ambiente.
-
-**¿Por qué la `V4` es una migración y no un `ALTER` improvisado?**
-
-Porque hay que **asegurar la consistencia de los datos previos**: si existieran favoritos sin
-lista (datos de un esquema anterior), fallaría cualquier `ALTER ... SET NOT NULL`. La migración
-los **reasigna a la lista por defecto** antes de endurecer la restricción. Una migración Flyway
-tiene el beneficio adicional de poder **revertirse/saltarse** según la versión de la base y queda
-registrada en `flyway_schema_history`.
-
-## Documentación (Swagger / OpenAPI)
-
-Con la app corriendo:
-
-| Recurso | URL |
-| --- | --- |
-| Swagger UI | http://localhost:8080/swagger-ui.html |
-| OpenAPI JSON | http://localhost:8080/v3/api-docs |
+| Variable | Default local | Uso |
+| --- | --- | --- |
+| `DATABASE_URL` | `jdbc:postgresql://localhost:5432/apirest` | JDBC de PostgreSQL |
+| `DATABASE_USERNAME` / `DATABASE_PASSWORD` | `postgres` / `postgres` | Credenciales |
+| `JWT_SECRET` | clave de desarrollo | Secreto para firmar JWT (**cambiar en producción**) |
+| `JWT_EXPIRATION` | `3600000` (1 h, ms) | Vencimiento del token |
+| `PORT` | `8080` | Puerto (Render/otros PaaS lo inyectan) |
 
 ## Endpoints
 
-### Catálogo de productos (`/api/productos`)
+### Autenticación (`/api/auth`)
 
-| Método | Ruta | Descripción | Código de éxito |
-| --- | --- | --- | --- |
-| `GET` | `/api/productos?limit=30&skip=0` | Lista paginada de productos | 200 |
-| `GET` | `/api/productos/{id}` | Producto por id (404 si no existe) | 200 |
-
-### Favoritos (`/api/favoritos`)
-
-| Operación | Método y ruta | Código de éxito |
+| Método | Ruta | Qué hace |
 | --- | --- | --- |
-| Crear | `POST /api/favoritos` | **201 Created** |
-| Listar | `GET /api/favoritos` | 200 OK |
-| Obtener uno | `GET /api/favoritos/{id}` | 200 OK |
-| Actualizar (reemplazo) | `PUT /api/favoritos/{id}` | 200 OK |
-| Eliminar | `DELETE /api/favoritos/{id}` | **204 No Content** |
-
-DTO de entrada (ahora con `listaId`):
+| `POST` | `/api/auth/registro` | Registra usuario rol `USER`, contraseña con BCrypt. `201`, `409` si email existe |
+| `POST` | `/api/auth/login` | Valida credenciales y devuelve `{token, tokenType: Bearer}`. `401` si falla |
 
 ```json
-{
-  "productoId": 1,
-  "nota": "Ideal para regalar",
-  "listaId": 1
-}
+// POST /api/auth/registro
+{ "email": "persona@example.com", "password": "secreta123" }
 ```
-
-DTO de salida:
 
 ```json
-{
-  "id": 1,
-  "productoId": 1,
-  "nota": "Ideal para regalar",
-  "fechaAgregado": "2026-09-17T10:30:00",
-  "listaId": 1
-}
+// POST /api/auth/login -> 200
+{ "token": "eyJ...", "tokenType": "Bearer" }
 ```
 
-### Listas (`/api/listas`)
+Luego: `Authorization: Bearer <token>` en cada request a listas/favoritos.
 
-| Operación | Método y ruta | Código de éxito |
+### Catálogo (`/api/productos`, público)
+
+| Método | Ruta | Éxito |
 | --- | --- | --- |
-| Crear | `POST /api/listas` | **201 Created** |
-| Listar | `GET /api/listas` | 200 OK |
-| Obtener una | `GET /api/listas/{id}` | 200 OK |
-| Listar sus favoritos | `GET /api/listas/{id}/favoritos` | 200 OK |
-| Eliminar (vacía) | `DELETE /api/listas/{id}` | **204 No Content** |
-| Mover favoritos | `POST /api/listas/{origenId}/mover-favoritos` | 200 OK |
+| `GET` | `/api/productos?limit=30&skip=0` | 200 |
+| `GET` | `/api/productos/{id}` | 200 / 404 |
 
-`DELETE /api/listas/{id}` devuelve **409 Conflict** si la lista aún tiene favoritos
-(no se puede eliminar borrando el historial). Para vaciarla primero: mover sus favoritos
-a otra lista o eliminarlos uno a uno.
+### Listas (`/api/listas`, Bearer)
 
-`POST /api/listas/{origenId}/mover-favoritos` recibe el id de la lista destino:
+| Operación | Método y ruta | Éxito |
+| --- | --- | --- |
+| Crear (dueño = usuario autenticado) | `POST /api/listas` | 201 |
+| Listar (solo propias; todas si `ADMIN`) | `GET /api/listas` | 200 |
+| Obtener / ver favoritos / eliminar | `GET`/`GET`/`DELETE /api/listas/{id}`(`/favoritos`) | 200/204, **403 si ajena**, 404 |
+| Mover favoritos | `POST /api/listas/{id}/mover-favoritos` | 200, 403 si origen/destino ajenas |
 
-```json
-{
-  "destinoId": 2
-}
-```
+### Favoritos (`/api/favoritos`, Bearer)
 
-Mueve **todos** los favoritos de la lista origen a la lista destino y **elimina la lista origen**
-en una misma transacción. Devuelve la lista destino. **400** si origen == destino, **404** si
-alguna lista no existe.
+CRUD completo (`POST` 201, `GET`, `GET /{id}`, `PUT`, `DELETE` 204). Solo favoritos de listas
+propias (`ADMIN`: todos). Crear/editar contra lista ajena → 403.
 
-### Relación entre entidades
+### Salud
 
-- Una **lista** tiene muchos **favoritos**.
-- Un **favorito** pertenece a exactamente **una** lista (`favoritos.lista_id` NOT NULL → FK
-  `fk_favoritos_lista`). En el modelo se modela con `@ManyToOne` desde `FavoritoEntity` hacia
-  `ListaEntity`, y la API lo expone como `listaId` en cada favorito y como recurso anidado
-  `GET /api/listas/{id}/favoritos`.
+`GET /health` → `200 {"status":"UP"}` (público; para verificar despliegues).
 
-## Operación transaccional: `mover-favoritos`
+## Migraciones (Flyway)
 
-El método `ListaService.moverFavoritos(...)` está anotado con **`@Transactional`** y ejecuta,
-en una única transacción de base de datos, cuatro operaciones:
-
-1. asigna la lista destino a cada favorito de la lista origen,
-2. confirma cada reasignación (`favoritoRepository.save`),
-3. elimina la lista origen.
-
-**¿Por qué es atómica (ACID)?** Si el proceso fallara a mitad de camino (error en un `save` o
-caída) sin transacción, quedaría un estado inconsistente: favoritos movidos "a medias" que
-referencian una lista que ya no existe, o una lista origen vacía que nunca se borró. Con
-`@Transactional`, **o se aplican todas las operaciones, o ninguna se persiste**: Spring abre la
-transacción antes del primer acceso, y si se lanza una excepción **hace rollback** de todo lo
-perseguido. Eso garantiza, en el sentido ACID, **atomicidad** (todo o nada), **consistencia**
-(los favoritos siempre apuntan a listas existentes) y **aislamiento** (otras operaciones ven el
-estado final, no un intermedio).
-
-`moverFavoritos` valida además que las dos listas existan (404) y que no sean la misma (400)
-**antes** de modificar nada.
-
-## Validación
-
-DTO / parámetros con **Bean Validation**:
-
-- `ListaRequestDTO` — `nombre`: `@NotBlank` + `@Size(max = 100)`.
-- `FavoritoRequestDTO` — `productoId`: `@NotNull` + `@Positive`; `nota`: `@NotBlank` + `@Size(max = 500)`;
-  `listaId`: `@NotNull` + `@Positive`.
-- `MoverFavoritosRequestDTO` — `destinoId`: `@NotNull` + `@Positive`.
-- Ids de ruta con `@Positive` (controllers con `@Validated`).
-
-Ante un error de validación la API responde **400 Bad Request** con el detalle por campo (ver
-`evidencia/` y `apirest.http`).
-
-## Manejo uniforme de errores
-
-`GlobalExceptionHandler` (`@RestControllerAdvice`) responde siempre con `ApiError`
-(timestamp, status, error, message, path y, si corresponde, `fieldErrors`):
-
-| Caso | Código |
+| Migración | Qué hace |
 | --- | --- |
-| Favorito, producto o **lista** inexistente | **404 Not Found** |
-| **Eliminar lista con favoritos** | **409 Conflict** |
-| Violación de integridad de la base (ej. FK) | 409 Conflict |
-| Validación fallida (body o parámetros) | **400 Bad Request** |
-| Cuerpo malformado / tipo de id inválido / argumento inválido | **400 Bad Request** |
-| Falla al consumir DummyJSON | **502 Bad Gateway** |
-| Recurso no existente | 404 |
-| Error inesperado | 500 |
+| `V1__create_favoritos.sql` | `favoritos` |
+| `V2__create_listas.sql` | `listas` |
+| `V3__add_lista_id_a_favoritos.sql` | FK favoritas→listas |
+| `V4__lista_id_obligatorio.sql` | Lista "Sin clasificar" + NOT NULL |
+| `V5__create_usuarios.sql` | `usuarios` (id, email único, password_hash, rol) |
+| `V6__add_usuario_id_a_listas.sql` | `listas.usuario_id` NOT NULL + FK → usuarios; listas heredadas reasignadas a usuario semilla `semilla@local` antes de endurecer |
 
-## Arquitectura: puertos y adaptadores
+## ¿Dónde vive la autorización y por qué? (Consigna 4.5)
 
-```
-                ┌──────────────┐     ┌─────────────────────────────────┐
-  Controller ──▶│   Service    │────▶│ Port (interfaz de persistencia) │
-                │ (lógica de   │     └──────────────────┬──────────────┘
-                │  dominio)    │                        │
-                └──────▲───────┘  ┌─────────────────────▼──────────────┐
-                       │          │ Adapter JPA (PostgreSQL actual)    │
-                       └──────────┤ FavoritoRepositoryAdapter          │
-                                  └────────────────────────────────────┘
+**En el Service (`ListaService` / `FavoritoService`), no en el Controller ni en anotaciones.**
+
+```java
+CurrentUser actual = securityHelper.requireUser();
+if (!actual.esAdmin() && !actual.id().equals(lista.getUsuarioId())) {
+    throw new AccessDeniedException("No tenés acceso a la lista ..."); // -> 403
+}
 ```
 
-- **Port** (`repository/FavoritoRepository`, `repository/ListaRepository`): contrato de
-  persistencia definido por el dominio, sin ninguna dependencia de infraestructura.
-- **Adapter** (`persistence/adapter/*`): implementa el port con **Spring Data JPA**. El servicio
-  **no conoce** JPA, entidades, Hibernate ni SQL; solo conoce el port. Por eso en TP1 el mismo
-  dominio funcionaba con `InMemoryFavoritoRepository` y ahora con PostgreSQL sin tocar la lógica
-  de negocio: la persistencia es **intercambiable** (esa es la diferencia puerto vs. adaptador).
+Elegí el Service porque la regla es **lógica de dominio** ("solo tu dueño puede tocar esta
+lista"), no formato HTTP:
 
-```
-src/main/java/com/example/tp1/
-├── Tp1Application.java
-├── client/            DummyJsonClient (RestClient) + DTOs crudos de DummyJSON
-├── config/            Config de RestClient (timeouts) y OpenAPI
-├── controller/        ProductoController, FavoritoController y ListaController
-├── domain/            Entidades de dominio Favorito y Lista (sin dependencias de infra)
-├── dto/               DTOs desacoplados del modelo interno
-├── exception/         ApiError, excepciones propias y GlobalExceptionHandler
-├── mapper/            Mapeo entidad ⇄ DTO (a mano)
-├── repository/        Puertos: FavoritoRepository y ListaRepository
-├── persistence/       Persistencia (adapter externo):
-│   ├── adapter/       FavoritoRepositoryAdapter y ListaRepositoryAdapter
-│   ├── entity/        Entidades JPA (FavoritoEntity, ListaEntity)
-│   └── repository/    JpaRepositories (Spring Data)
-└── service/           FavoritoService, ListaService y ProductoService
-```
+1. **Mismo criterio en todo punto de entrada.** `obtener`, `eliminar`, `listarFavoritos` y
+   `moverFavoritos` comparten `obtenerEntidad()` que ya verifica acceso; un `GET` o un
+   `DELETE` no pueden olvidarla. En el Controller habría que repetirla en cada método y
+   además mezcla transporte con negocio.
+2. **Reutilizable fuera de HTTP.** Si mañana hay otro adaptador (CLI, tests sin MockMvc)
+   no pasa por el Controller; en cambio todo lo que llame al Service queda protegido.
+3. **Distingue 403 vs. 404 deliberadamente.** `obtenerEntidad()` primero busca (404 si no
+   existe) y luego verifica dueño antes de devolver (403 si existe pero es ajena), tal como
+   pide la consigna. Esa decisión no es un detalle de Spring Security: es una regla de
+   negocio, y vive donde vive el negocio.
+4. **Fácil de testear.** Los unitarios (`ListaServiceImplTest`) autenticación simulada con
+   `TestSecurity` y verifican `obtener_listaAjena_lanzaAccesoDenegado` sin subir Spring.
+
+El **Service solo conoce el `CurrentUser`** (puesto en el `SecurityContext` por
+`JwtAuthenticationFilter`); no conoce HTTP, JWT ni cabeceras. El Controller sigue fino.
 
 ## Pruebas
 
-### Automáticas
-
 ```bash
-.\mvnw.cmd test
+.\mvnw.cmd test        # Surefire: *Test (unitarios, sin Docker)
+.\mvnw.cmd verify      # Surefire + Failsafe: *IT con Testcontainers (base limpia + Flyway)
 ```
 
-- `FavoritoServiceTest` / `ListaServiceTest`: **unitarios** de los services usando **fakes**
-  que implementan los puertos (sin base de datos ni Mockito).
-- `FavoritoApiTest` / `ListaApiTest`: **integración** contra un **PostgreSQL real** levantado con
-  **Testcontainers** (MockMvc + contenedor `postgres:16-alpine`). Cubren CRUD, validaciones
-  400/404/409 y `mover-favoritos`.
-  Se **omiten automáticamente** si Docker no está disponible (`@Testcontainers(disabledWithoutDocker = true)`);
-  los tests unitarios corren siempre.
+- **Unitarios**: `ListaServiceImplTest`, `UsuarioServiceTest`, `FavoritoServiceTest`
+  (fakes en memoria, método `operación_escenario_resultado`).
+- **Integración (`*IT`, Failsafe)**: `AuthControllerIT`, `ListaControllerIT`,
+  `FavoritoControllerIT` — PostgreSQL real por Testcontainers + migraciones Flyway en cada
+  corrida. Cubren: login 200/401, registro 201/409, lista propia 200, ajena 403, sin token 401,
+  ADMIN sobre ajena 200, y el CRUD anterior de listas/favoritos autenticado.
+- Si Docker no está disponible, los `*IT` se **omiten** (`disabledWithoutDocker`), el build no
+  falla; los unitarios siempre corren.
 
-> Para correr la suite completa (incluida la integración) necesitás Docker activo.
+El sufijo manda: `*Test` → Surefire (`mvn test`), `*IT` → Failsafe (`mvn verify`).
 
-### Manuales — `apirest.http`
+## Integración continua (GitHub Actions)
 
-Colección lista para usar con la extensión **REST Client** de VS Code, con un caso por endpoint,
-incluidos los de error (400/404/409) y la operación `mover-favoritos`.
+Workflow **`.github/workflows/ci.yml`**: en cada `push`/`pull_request` corre en Ubuntu con
+JDK 25:
 
-## Evidencia
+```bash
+chmod +x mvnw
+./mvnw test && ./mvnw verify -Dsurefire.useFile=false  # ver nota abajo
+```
 
-- Carpeta **`evidencia/`** con las respuestas **reales** obtenidas contra un **PostgreSQL 16**
-  corriendo en local: catálogo, favoritos (con `listaId`), listas (éxito/error 400/404/409),
-  `mover-favoritos`, swagger, e **`migraciones/`** con el historial de Flyway y la prueba del
-  escenario de datos previos (adopción del esquema heredado). Detalle en `evidencia/README.md`.
-- `apirest.http`: colección de pruebas manuales.
-- Swagger UI: http://localhost:8080/swagger-ui.html — muestra los tres grupos.
+En la práctica el workflow ejecuta `./mvnw verify`, que incluye `test` de Surefire **y**
+los `*IT` de Failsafe (con Testcontainers, sin PostgreSQL local). Para chequear el resultado:
+pestaña **Actions** del repo → corrida `CI` → job **build** → **Tests run** en el log.
+Si un test falla, el job queda **rojo**; corregí y volvé a pushear.
 
-## Puntos de la consigna y dónde está cada uno
+> Si el paso de Maven falla con `Permission denied` en el wrapper, corré
+> `git update-index --chmod=+x mvnw` y subí el cambio.
 
-1. **PostgreSQL + Spring Data JPA**: `persistence/` (entidades JPA, JpaRepositories y adapters)
-   + `application.properties` (`spring.datasource.*`).
-2. **Reemplazo del repo en memoria por un adapter JPA sin tocar dominio/Service/Controller**:
-   `FavoritoRepositoryAdapter` implementa el port `FavoritoRepository`; `InMemoryFavoritoRepository`
-   fue eliminado y **ningún Service dependía de él** (dependían del port).
-3. **Flyway + evolución del esquema**: `db/migration/V1..V4` (ver tabla de migraciones arriba).
-4. **Modelar relación y exponerla en la API**: `@ManyToOne` en `FavoritoEntity`; la API la expone
-   como `listaId` en los favoritos y como `GET /api/listas/{id}/favoritos`.
-5. **Operación transaccional con justificación ACID**: `ListaService.moverFavoritos` con
-   `@Transactional` (sección "Operación transaccional").
-6. **Puerto vs. adaptador**: sección "Arquitectura: puertos y adaptadores".
+## Despliegue (Render, ejemplo)
+
+1. Creá **PostgreSQL** en Render (plan free) y copiá `DATABASE_URL`/`DATABASE_USERNAME`/`DATABASE_PASSWORD`.
+2. Creá un **Web Service** (Docker) apuntando a este repo; `Dockerfile` incluido.
+3. Environment Variables:
+
+   ```
+   DATABASE_URL=jdbc:postgresql://<host>:5432/<db>
+   DATABASE_USERNAME=<usuario>
+   DATABASE_PASSWORD=<clave>
+   JWT_SECRET=<secreto largo y aleatorio>   # ¡nunca el de desarrollo!
+   PORT=10000                                # o ignorar si la plataforma inyecta PORT
+   ```
+
+4. Deploy. Al arrancar, Flyway migra la base remota. Verificá:
+
+   ```
+   GET https://<tu-servicio>.onrender.com/health        -> {"status":"UP"}
+   GET .../api/listas (sin token)                       -> 401
+   POST .../api/auth/login + Authorization: Bearer ...   -> 200
+   ```
+
+   Revisá los **Logs** del servicio: debe verse `Started Tp1Application` sin errores de
+   Flyway/conexión. Podés suspender el servicio tras verificar; alcanza la evidencia.
+
+## Evidencia / puntos de consigna
+
+- `V5`/`V6` aplicadas vía Flyway, sin ediciones posteriores.
+- Suite verde local y en CI (ver Actions).
+- `GET /health` y 401/200 sobre endpoint protegido.
+- Swagger con auth (`Auth` tag + `bearerAuth` scheme) y listas/favoritos marcados "requiere autenticación".

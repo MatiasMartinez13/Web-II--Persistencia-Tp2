@@ -108,6 +108,24 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
+    @ExceptionHandler(EmailAlreadyExistsException.class)
+    public ResponseEntity<ApiError> handleEmailExistente(EmailAlreadyExistsException ex, HttpServletRequest request) {
+        ApiError error = new ApiError(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI(), null);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex, HttpServletRequest request) {
+        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED, ex.getMessage(), request.getRequestURI(), null);
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiError> handleAccesoDenegado(AccessDeniedException ex, HttpServletRequest request) {
+        ApiError error = new ApiError(HttpStatus.FORBIDDEN, ex.getMessage(), request.getRequestURI(), null);
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleViolacionIntegridad(org.springframework.dao.DataIntegrityViolationException ex,
                                                                HttpServletRequest request) {
